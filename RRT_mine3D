@@ -8,8 +8,6 @@ import random
 
 import matplotlib.pyplot as plt
 import numpy as np
-import matplotlib as mpl
-from mpl_toolkits.mplot3d import Axes3D
 
 show_animation = True
 
@@ -51,7 +49,8 @@ class RRT:
         """
         self.start = self.Node(start[0], start[1], start[2])
         self.end = self.Node(goal[0], goal[1], goal[2])
-        self.min_rand = rand_area[0]
+        self.min_rand = rand_area[0] #I think that these should not change
+        # The reason it that,the same parameters can be used in z-direction
         self.max_rand = rand_area[1]
         self.expand_dis = expand_dis
         self.path_resolution = path_resolution
@@ -79,6 +78,7 @@ class RRT:
 
             if animation and i % 5 == 0:
                 self.draw_graph(rnd_node)
+            #print(self.node_list[-1].y)
 
             if self.calc_dist_to_goal(self.node_list[-1].x,
                                       self.node_list[-1].y,
@@ -96,7 +96,7 @@ class RRT:
     def steer(self, from_node, to_node, extend_length=float("inf")):
 
         new_node = self.Node(from_node.x, from_node.y, from_node.z)
-        d, theta = self.calc_distance_and_angle(new_node, to_node)
+        d, theta, alpha = self.calc_distance_and_angle(new_node, to_node)
 
         new_node.path_x = [new_node.x]
         new_node.path_y = [new_node.y]
@@ -110,12 +110,12 @@ class RRT:
         for _ in range(n_expand):
             new_node.x += self.path_resolution * math.cos(theta)
             new_node.y += self.path_resolution * math.sin(theta)
-            new_node.z += np.sqrt(new_node.x**2 + new_node.y**2)
+            new_node.z += self.path_resolution * math.sin(alpha)
             new_node.path_x.append(new_node.x)
             new_node.path_y.append(new_node.y)
             new_node.path_z.append(new_node.z)
 
-        d, _ = self.calc_distance_and_angle(new_node, to_node)
+        d, _, _ = self.calc_distance_and_angle(new_node, to_node)
         if d <= self.path_resolution:
             new_node.path_x.append(to_node.x)
             new_node.path_y.append(to_node.y)
@@ -142,7 +142,9 @@ class RRT:
         dx = x - self.end.x
         dy = y - self.end.y
         dz = z - self.end.z
-        return math.hypot(dx, dy, dz)
+        s = math.hypot(dx, dy)
+        r = math.hypot(s, dz)
+        return r
 
     def get_random_node(self):
         if random.randint(0, 100) > self.goal_sample_rate:
@@ -164,31 +166,42 @@ class RRT:
             plt.gca(projection='3d').plot(rnd.x, rnd.y, rnd.z, "^k")
         for node in self.node_list:
             if node.parent:
-                plt.gca(projection='3d').plot(node.path_x, node.path_y, node.path_z,  "-g")
+                plt.gca(projection='3d').plot(node.path_x, node.path_y, node.path_z, "-g")
 
         for (ox, oy, oz, size) in self.obstacle_list:
             self.plot_circle(ox, oy, oz, size)
 
         plt.gca(projection='3d').plot(self.start.x, self.start.y, self.start.z, "xr")
-        plt.gca(projection='3d').plot(self.end.x, self.end.y, self.end.z,  "xr")
-        plt.axis("equal")
-        plt.axis([-2, 15, -2, 15, -2,15])
+        plt.gca(projection='3d').plot(self.end.x, self.end.y, self.end.z, "xr")
+        plt.axis("auto")
+        plt.axis([-2, 15, -2, 15])
         plt.grid(True)
         plt.pause(0.01)
 
-    @staticmethod
-    def plot_circle(x, y, z, size, color="-b"):  # pragma: no cover
+
+    """
+    def plot_circle(x, y, size, color="-b"):  # pragma: no cover
         deg = list(range(0, 360, 5))
         deg.append(0)
-        deg = np.linspace(0,360,72)
         xl = [x + size * math.cos(np.deg2rad(d)) for d in deg]
         yl = [y + size * math.sin(np.deg2rad(d)) for d in deg]
-        xl = x + size*np.cos(np.deg2rad(deg))
-        yl = y + size * np.sin(np.deg2rad(deg))
-        zl = np.sqrt(xl**2 + yl**2)
-        plt.gca(projection='3d').plot(xl, yl, zl, color)
+        zl =
+        plt.plot(xl, yl, color)
+"""
+    @staticmethod
+    def plot_circle(x, y, z, size):
+
+        u = np.linspace(0, 2 * np.pi, 72)
+        v = u
+        xl = x + size * np.outer(np.cos(u), np.sin(v))
+        yl = y + size * np.outer(np.sin(u), np.sin(v))
+        zl = z + size * np.outer(np.ones(np.size(u)), np.cos(v))
+
+        plt.gca(projection='3d').plot_wireframe(xl, yl, zl, color = 'k')
+
 
     @staticmethod
+    # I think that these are the metrics
     def get_nearest_node_index(node_list, rnd_node):
         dlist = [(node.x - rnd_node.x)**2 + (node.y - rnd_node.y)**2 + (node.z - rnd_node.z)**2
                  for node in node_list]
@@ -218,36 +231,62 @@ class RRT:
         dx = to_node.x - from_node.x
         dy = to_node.y - from_node.y
         dz = to_node.z - from_node.z
-        d = math.hypot(dx, dy, dz)
+        d = math.hypot(dx, dy)
+        d = math.hypot(d, dz)
         theta = math.atan2(dy, dx)
-        return d, theta
+        alpha = math.atan2(dz, d)
+        return d, theta, alpha
 
 
-def main(gx=6.0, gy=10.0, gz = 0):
+def main(gx=6.0, gy=10.0, gz = 0.0):
+    n = 2
+    gx, gy, gz = [], [], []
+    sx, sy, sz = [], [], []
+    """
+    for i in range(n):
+        gx1, gy1, gz1 = [6.0, 10.0], [10.0, 12.0], [0.0, 5.0]
+        gx.append(gx1[i]), gy.append(gy1[i]), gz.append(gz1[i])
+        sx1, sy1, sz1 = [0.0, gx[0]], [0.0, gy[0]], [0.0, gz[0]]
+        sx.append(sx1[i]), sy.append(sy1[i]), sz.append(sz1[i])
+    
+    gx, gy, gz = gx[0], gy[0], gz[0]
+    sx, sy, sz = sx[0], sy[0], sz[0]
+    """
     print("start " + __file__)
 
     # ====Search Path with RRT====
-    obstacleList = [(5, 5, 5, 1)]  # [x, y, radius]
+    obstacleList = [(5, 5, 5, 2), (4, 10, 5, 1)]  # [x, y, z, radius]
     # Set Initial parameters
-    rrt = RRT(
-        start=[0, 0, 0],
-        goal=[gx, gy, gz],
-        rand_area=[-2, 15, 2],
-        obstacle_list=obstacleList)
-    path = rrt.planning(animation=show_animation)
 
-    if path is None:
-        print("Cannot find path")
-    else:
-        print("found path!!")
+    rrt = []
+    path = []
+    for i in range(n):
+        gx1, gy1, gz1 = [6.0, 10.0], [10.0, 12.0], [0.0, 5.0]
+        gx.append(gx1[i]), gy.append(gy1[i]), gz.append(gz1[i])
+        sx1, sy1, sz1 = [0.0, gx[0]], [0.0, gy[0]], [0.0, gz[0]]
+        sx.append(sx1[i]), sy.append(sy1[i]), sz.append(sz1[i])
+        rrt1 = RRT(
+            start=[sx[i], sy[i], sz[i]],
+            goal=[gx[i], gy[i], gz[i]],
+            rand_area=[-2, 15],
+            obstacle_list=obstacleList)
+        rrt.append(rrt1)
+        path1= rrt[i].planning(animation=show_animation)
+        path.append(path1)
+        if path1 is None:
+            print("Cannot find path")
+        else:
+            print("found path!!")
 
-        # # Draw final path
-        # if show_animation:
-        #     rrt.draw_graph()
-        #     plt.plot([x for (x, y) in path], [y for (x, y) in path], '-r')
-        #     plt.grid(True)
-        #     plt.pause(0.01)  # Need for Mac
-        #     plt.show()
+            # Draw final path
+            if show_animation:
+                rrt1.draw_graph()
+                plt.gca(projection='3d').plot([x for (x, y, z) in path[i]], [y for (x, y, z) in path[i]], [z for (x, y, z) in path[i]], '-r')
+                plt.grid(True)
+                plt.pause(0.01)  # Need for Mac
+                plt.show()
+
+
 
 
 if __name__ == '__main__':
