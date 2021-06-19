@@ -1,0 +1,190 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import math
+import heapq as hq # just priority queue
+from scipy.integrate import odeint
+# Kinematic based on https://journals.sagepub.com/doi/pdf/10.1177/1687814018758739
+
+
+# bx, by, bz = (-10, 10), (-10, 10), (-5, 0)
+# path = [(-5.0, -5.0, -1.0, 0.0, 0.0), (-5.0, -5.0, -1.0, 0.0, 0.0), (-4.0, -5.0, -1.0, 0.0, 0.0), (-3.0, -5.0, -1.0, 0.0, 0.0), (-2.0, -5.0, -1.0, 0.0, 0.0), (-1.0, -5.0, -1.0, -12.004086604311734, 0.0), (-0.021867230993275255, -5.2079814563734885, -1.0, -12.004086604311734, 0.0), (0.9562655380134495, -5.415962912746977, -1.0, -12.004086604311734, 0.0), (1.9343983070201742, -5.623944369120466, -1.0, -12.004086604311734, -12.004086604311734), (2.912531076026899, -5.831925825493954, -1.2126311099715938, 0.0, -12.004086604311734), (3.912531076026899, -5.831925825493954, -1.4252622199431877, 0.0, -12.004086604311734), (5, -6, -2, 12, -12), (5.0, -6.0, -2.0, 12.0, -12.0), (5.0, -6.0, -2.0, 12.0, -12.0), (5.978147600733806, -5.79208830918224, -2.2125565616700222, 24.004086604311734, -12.000000000000002), (6.891664045683495, -5.385286508784945, -2.4251131233400445, 36.008173208623475, -12.000000000000002), (7.700597184613327, -4.797385856683649, -2.6376696850100667, 48.012259812935206, 0.004086604311731934), (8.369568761909115, -4.054097871599545, -2.6375983603094797, 60.01634641724694, 0.004086604311731934), (8.869321665553532, -3.187929853661354, -2.6375270356088927, 72.02043302155867, 0.004086604311731934), (9.177999471179474, -2.23676319512356, -2.6374557109083057, 84.02451962587041, 0.004086604311731934), (9.2821023210307, -1.242196658056857, -2.6373843862077186, 96.02860623018215, 12.008173208623466), (9.177077332977703, -0.24772707486968515, -2.424678725673342, 103.0287892843738, 12.008173208623466), (8.95163671746716, 0.7265298362570605, -2.2119730651389653, 110.02897233856545, 12.008173208623466), (8.609141450380353, 1.6660493900839812, -1.9992674046045886, 122.03305894287719, 12.008173208623466), (8.078732961316742, 2.5137915883549287, -1.786561744070212, 134.03714554718894, 12.008173208623466), (7.383608380178625, 3.2326808821252264, -1.5738560835358353, 134.03714554718894, 12.008173208623466), (6.688483799040508, 3.951570175895524, -1.3611504230014586, 134.03714554718894, 12.008173208623466), (5.993359217902391, 4.670459469665822, -1.148444762467082, 122.03305894287722, 12.008173208623466), (5.0, 6.0, -1.0, 90.0, 0.0)]
+#
+# print(path[9:])
+# rx, ry, rz, rtheta, ralpha = [], [], [], [], []
+# for node in path[9:]:
+#     rx.append(node[0])
+#     ry.append(node[1])
+#     rz.append(node[2])
+#     rtheta.append(node[3])
+#     ralpha.append(node[4])
+#
+#
+# plt.gca(projection='3d').plot(rx, ry, rz)
+# plt.gca(projection='3d').scatter(rx, ry, rz)
+# plt.xlim([min(bx), max(bx)])
+# plt.ylim([min(by), max(by)])
+# plt.gca(projection='3d').set_zlim(-5,0)
+# plt.show()
+# vehicle_length = 1
+#
+# psi = [30, 150, 210, 300]
+# psi = [45, 90+45, 180 + 45, 360-45]
+# psi1 = [0, 90, 180, 270]
+# vector = [1, 1, 0]
+# x, y, z = [], [], []
+# for i in range(np.size(psi)):
+#     R_psi = [[math.cos(math.radians(psi[i])), -math.sin(math.radians(psi[i])), 0], [math.sin(math.radians(
+#         psi[i])), math.cos(math.radians(psi[i])), 0], [0, 0, 1]]
+#     print()
+#     a, b = vehicle_length/2 * math.cos(math.radians(psi1[0])), vehicle_length/2 * math.sin(math.radians(psi1[0]))
+#     vector  = np.transpose([a, b, 0])
+#     print(psi[i], 'angle')
+#     print(vector, 'translation')
+#     vector = np.dot(R_psi, vector)
+#
+#     print(vector, 'rotation')
+#     x.append(vector[0]), y.append(vector[1]), z.append(vector[2])
+#
+# R_new = [[math.cos(math.radians(psi[0])), -math.sin(math.radians(psi[0])), 0], [math.sin(math.radians(
+#         psi[0])), math.cos(math.radians(psi[0])), 0], [0, 0, 1]]
+# test = [1, 0, 0]
+#
+# shs = np.dot(R_new, test)
+#
+# print(x, y, z)
+from sympy import *
+
+cx, cy, cz = symbols('cx cy cz')
+sx, sy, sz = symbols('sx sy sz')
+u, v, w = symbols('u v w')
+x, y, z = symbols('x y z')
+t = 0
+T1, T2, T3, T4 = [0.5, 0, 0], [0.5, 0, 0], [0, 0, 0], [0, 0, 0]
+
+# Forward T1, T2, T3, T4 = [1, 0, 0], [1, 0, 0], [0, 0, 0], [0, 0, 0]
+# Backwards T1, T2, T3, T4 = [-1, 0, 0], [-1, 0, 0], [0, 0, 0], [0, 0, 0]
+# Strife Right T1, T2, T3, T4 = [1, 0, 0], [1, 0, 0], [0, 1, 0], [0, 1, 0]
+# Strife Left T1, T2, T3, T4 = [1, 0, 0], [1, 0, 0], [0, -1, 0], [0, -1, 0]
+# Swing Right T1, T2, T3, T4 = [1, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 0]
+# Swing Left T1, T2, T3, T4 = [1, 0, 0], [1, 0, 0], [0, 0, 0], [0, 1, 0]
+
+
+UUV_length, UUV_width = 1, 1
+
+T1_pos, T2_pos, T3_pos, T4_pos = [0, -UUV_width/2, 0], [0, UUV_width/2, 0], [UUV_length/2, 0, 0], [-UUV_length/2, 0, 0]
+#x, y, z = T1_pos[0], T1_pos[1], T1_pos[2]
+x, y, z = UUV_length/2, 0, 0
+x = x
+u, v, w, = T1[0] + T2[0] + T3[0] + T4[0], T1[1] + T2[1] + T3[1] + T4[1], T1[2] + T2[2] + T3[2] + T4[2]
+
+R_w, R_l = UUV_width/2, UUV_length/2
+psi_input = 0
+psi_0 = math.radians(psi_input)
+cz, sz = math.cos(math.radians(psi_0)), math.sin(math.radians(psi_0)) # Cos and sin of yaw
+
+Rx =Matrix([[1, 0, 0, 0], [0, cx, -sx, 0], [0, sx, cx, 0], [0, 0, 0, 1]]) # Irrelevant for now
+Ry = Matrix([[cy, 0, sy, 0], [0,1,0, 0], [-sy, 0, cy, 0], [0, 0, 0, 1]]) # Irrelevcant for now
+Rz = Matrix([[cz, -sz, 0, 0], [sz, cz, 0, 0], [0, 0, 1,0], [0, 0, 0, 1]]) # This is correct
+T = Matrix([[1, 0, 0, u], [0, 1, 0, v], [0, 0, 1, w], [0, 0, 0, 1]]) # Translation matrix that should be working fine
+
+V = Matrix([x, y, z, 1])
+A = Matrix([[cz, -sz, 0, u], [sz, cz, 0, v], [0, 0, 1, w], [0, 0, 0, 1]])
+
+
+state_ini = A*V
+#state_ini = T*state_ini
+x, y, z = state_ini[0], state_ini[1], state_ini[2]
+
+
+
+#x,y,z = math.cos(psi_0), math.sin(psi_0), math.tan(psi_0)
+
+
+while t<= 150:
+
+
+    if t == 50:
+        T1, T2, T3, T4 = [0.5, 0, 0], [0.5, 0, 0], [0, 0, 0], [0, 0.2, 0]
+    if t == 100:
+        T1, T2, T3, T4 = [0.5, 0, 0], [0.5, 0, 0], [0, 0.2, 0], [0, 0, 0]
+    omega1 ,omega2, omega3, omega4 = np.cross(T1,T1_pos), np.cross(T2,T2_pos), np.cross(T3,T3_pos), np.cross(T4,T4_pos)
+    #psi = psi_0 + v/R_w + u/R_l - u/R_l
+    #psi = psi_0 + omega1[2] + omega2[2] + omega3[2] + omega4[2]
+    u, v, w, = T1[0] + T2[0] + T3[0] + T4[0], T1[1] + T2[1] + T3[1] + T4[1], T1[2] + T2[2] + T3[2] + T4[2] # decoupled velocities
+    psi = psi_0 + T1[0]/T1_pos[1] + T2[0]/T2_pos[1] + T3[1]/T3_pos[0] + T4[1]/T4_pos[0] # Linear angle calculation, yaw
+
+
+    psi_0 = psi # Previous state of yaw is updated to new state
+
+    cz, sz = math.cos(math.radians(psi)), math.sin(math.radians(psi))  # Cos and sin of yaw
+
+    Rx = Matrix([[1, 0, 0, 0], [0, cx, -sx, 0], [0, sx, cx, 0], [0, 0, 0, 1]])  # Irrelevant for now
+    Ry = Matrix([[cy, 0, sy, 0], [0, 1, 0, 0], [-sy, 0, cy, 0], [0, 0, 0, 1]])  # Irrelevcant for now
+    Rz = Matrix([[cz, -sz, 0, 0], [sz, cz, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])  # This is correct
+    T = Matrix([[1, 0, 0, u], [0, 1, 0, v], [0, 0, 1, w], [0, 0, 0, 1]])  # Translation matrix that should be working fine
+    A = Matrix([[cz, -sz, 0, u], [sz, cz, 0, v], [0, 0, 1, w], [0, 0, 0, 1]])
+
+    # M = Rz*Ry
+    # N = M * Rx
+    # X = N + T
+    #print(M)
+    #print(N)
+    #print(X)
+
+    # 3D mine
+    #combined = Rz*T
+    V = Matrix([x, y, z, 1]) # Initial state of the UUV
+
+
+
+
+    #x1, y1, z1 = V[0] + u, V[1] + v, V[2] + w # Translation of UUV, I think this is correct
+
+    #V = Matrix([x1, y1, z1, 1]) # Updated states
+    #A = Rz + T
+    #print(A)
+    #Rotation = Rz * V
+
+    #Translation = T*Rotation
+    #Translation = T*V
+    #Translation = combined*V
+    #print(Translation[0], 'x', '\n', Translation[1], 'y', '\n', Translation[2], 'z')
+
+    #Rotation = Rz * V# Rotation of translated states, this works, but I don't know if the way it should
+    #Rotation = T*Rotation
+    Rotation = A*V
+    #b = A*V
+    #Rotation = Rz * Translation
+    #x, y, z = Translation[0], Translation[1], Translation[2]
+    x, y, z = Rotation[0], Rotation[1], Rotation[2] # Update previous states with new states, I think here is the problem
+
+
+
+    #print(b)
+    #print(Rotation)
+    print(Rotation[0], 'x', '\n', Rotation[1], 'y', '\n', Rotation[2], 'z')
+    print(math.degrees(psi) % 360, 'Yaw')
+
+    print('%%%%%%%%%%%%%%%%%%')
+
+    plt.figure(1)
+    plt.scatter(Rotation[1], Rotation[0])
+    #plt.scatter(x, y)
+    #plt.scatter(Translation[1], Translation[0])
+
+    #plt.arrow(Rotation[1], Rotation[0], 1 * cos(psi), 1 * sin(psi))
+    plt.axis('equal')
+    plt.xlabel('y-diraction [v]')
+    plt.ylabel('x-diraction [u]')
+    plt.grid()
+    #plt.figure(2)
+    #plt.scatter(Translation[1], Translation[0])
+    #plt.axis('square')
+
+    plt.pause(0.01)
+
+
+
+    t += 1
+
+plt.show()
