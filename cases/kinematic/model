@@ -1,0 +1,104 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+import math
+from sympy import *
+import time
+
+# Kinematic based on https://journals.sagepub.com/doi/pdf/10.1177/1687814018758739
+
+
+cx, cy, cz = symbols('cx cy cz') # Symbolics for cos in 3D
+sx, sy, sz = symbols('sx sy sz') # Symbolics for sin in 3D
+u, v, w = symbols('u v w') # Symbolics for velocity vectors
+x, y, z = symbols('x y z') # Symbolics for state space
+t = 0 # Initial time of simulation
+T1, T2, T3, T4 = 0.5, 0.5, 0, 0 # Initial thruster alignment
+
+## This is a simple layout of how the alignment works, on/off
+# Forward T1, T2, T3, T4 = 1, 1, 0, 0
+# Backwards T1, T2, T3, T4 = -1, -1, 0, 0
+# Strife Right T1, T2, T3, T4 = 1, 1, 1, 1
+# Strife Left T1, T2, T3, T4 = 1, 1, -1, -1
+# Swing Right T1, T2, T3, T4 = 1, 1, 1, 0
+# Swing Left T1, T2, T3, T4 = 1, 1, 0, 1
+
+
+UUV_length, UUV_width = 1, 1 # The geometry of the UUV
+
+# Position of each thruster
+
+T1_pos, T2_pos, T3_pos, T4_pos = -UUV_width/2, UUV_width/2, UUV_length/2, -UUV_length/2
+
+x, y, z = 0, 0, 0 # Initial state position
+
+
+yaw_input = 0 # Initial Yaw input angles
+yaw_0 = math.radians(yaw_input) # Transformed Yaw input into radians
+
+# Initial State vector
+V = Matrix([x, y, z, 1])
+
+test = [[T1, T2], [T3, T4], []]
+test_pos = [[T1_pos, T2_pos], [T3_pos, T4_pos], []]
+x_val, y_val = [], []
+# Run of simulation, can be set into a function
+while t<= 80:
+
+
+    if t == 20:
+        T1, T2, T3, T4 = 0.5, 0.5, 0.2, 0.2
+    
+
+    Tu, Tv, Tw = T1 + T2, T3 + T4, 0 # decoupled velocities
+    yaw = yaw_0 + T1/T1_pos + T2/T2_pos + T3/T3_pos + T4/T4_pos # Linear angle calculation, yaw
+
+
+    yaw_0 = yaw # Previous state of yaw is updated to new state
+
+    cz, sz = math.cos(math.radians(yaw)), math.sin(math.radians(yaw))  # Cos and sin of yaw
+
+    Rx = Matrix([[1, 0, 0, 0], [0, cx, -sx, 0], [0, sx, cx, 0], [0, 0, 0, 1]])  # Irrelevant for now
+    Ry = Matrix([[cy, 0, sy, 0], [0, 1, 0, 0], [-sy, 0, cy, 0], [0, 0, 0, 1]])  # Irrelevcant for now
+    Rz = Matrix([[cz, -sz, 0, 0], [sz, cz, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])  # This is correct
+
+    V = Matrix([x, y, z, 1]) # Initial state of the UUV
+
+    x1, y1, z1 = V[0] + Tu, V[1] + Tv, V[2] + Tw # Translation of UUV, I think this is correct
+
+    V = Matrix([x1, y1, z1, 1]) # Updated states
+
+    Rotation = Rz*V
+
+    u, v, w = (Rotation[0] - x)/t, (Rotation[1] - y)/t, (Rotation[2] - z)/t
+
+    x, y, z = Rotation[0], Rotation[1], Rotation[2] # Update previous states with new states, I think here is the problem
+
+
+    print(Rotation[0], 'x', '\n', Rotation[1], 'y', '\n', Rotation[2], 'z')
+    print(math.degrees(yaw) % 360, 'Yaw')
+
+    print('%%%%%%%%%%%%%%%%%%')
+
+    plt.cla()
+    plt.scatter(Rotation[1], Rotation[0])
+    plt.axis('equal')
+    plt.xlabel('Y-distance')
+    plt.ylabel('X-distance')
+    plt.pause(0.01)
+    #
+    # plt.pause(0.01)
+    # time.sleep(1)
+    # def animate(i):
+    #     y = Rotation[0]
+    #     x = Rotation[1]
+    #
+    #     plt.cla()
+    #     plt.plot(x, y)
+    #     plt.tight_layout()
+    #
+    #
+    # ani = animation.FuncAnimation(plt.gcf(), animate, interval=1000)
+    t += 1
+
+plt.show()
